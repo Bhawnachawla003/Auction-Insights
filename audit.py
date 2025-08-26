@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 import requests
+import tempfile
+from langchain_community.document_loaders import UnstructuredPDFLoader
+from pydantic import BaseModel, Field
 from docx import Document
 from PyPDF2 import PdfReader
 import datetime as dt
@@ -952,6 +955,32 @@ def extract_json_from_text(text: str) -> dict:
         logging.error(f"JSON extraction failed: {e}")
     return {}
 
+def extract_text_with_unstructured(pdf_url: str) -> str:
+    """
+    Download PDF from URL and extract text using UnstructuredPDFLoader.
+    Returns the extracted text content.
+    """
+    try:
+        response = requests.get(pdf_url, timeout=30)
+        response.raise_for_status()
+
+        # UnstructuredPDFLoader requires a file path, so we use a temp file.
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(response.content)
+            temp_path = temp_file.name
+
+        try:
+            loader = UnstructuredPDFLoader(temp_path)
+            docs = loader.load()
+            full_text = " ".join([doc.page_content for doc in docs])
+            logging.info(f"Successfully extracted {len(full_text)} characters from PDF")
+            return full_text.strip()
+        finally:
+            os.unlink(temp_path)
+    except Exception as e:
+        logging.error(f"PDF extraction failed: {e}")
+        return ""
+        
 def clean_assets(assets: list) -> list:
     """
     Cleans OCR noise from asset descriptions and formats numeric values.
@@ -1122,7 +1151,6 @@ Return the result in this **exact JSON format**:
     }}
 }}
 """
-
         logging.info(f"Prompt length: {len(prompt.split())} words")
 
         # Step 4: Invoke the LLM
