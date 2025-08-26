@@ -683,11 +683,11 @@ def is_pdf_scanned(pdf_bytes: bytes) -> bool:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         has_images = any(page.get_images(full=True) for page in doc)
        
-        return has_images 
+        return has_images
     except Exception as e:
         print(f"[ERROR] is_pdf_scanned failed: {e}")
-        return False 
-    
+        return False
+   
 def extract_json_from_text(text: str) -> dict:
     """
     Attempts to extract the first valid JSON object from a text string.
@@ -703,7 +703,7 @@ def extract_json_from_text(text: str) -> dict:
     return {}
    
 
-    return clean_assets(all_assets) 
+    return clean_assets(all_assets)
 
 def extract_assets_from_text(text: str) -> list:
     def is_valid_price(value: str) -> bool:
@@ -717,7 +717,7 @@ def extract_assets_from_text(text: str) -> list:
         # Discard very large numbers that look like phone numbers (>10 digits)
         if value_clean.isdigit() and len(value_clean) > 10:
             return False
-        # Discard very small numbers 
+        # Discard very small numbers
         if value_clean.isdigit() and len(value_clean) < 2:
             return False
         return True
@@ -883,45 +883,6 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
 
     return raw_text.strip(), tables, scanned_pdf
 
-def extract_text_with_unstructured(pdf_url: str) -> str:
-    """
-    Download PDF from URL and extract text using UnstructuredPDFLoader.
-    Returns the extracted text content.
-    """
-    try:
-        # Download PDF
-        response = requests.get(pdf_url, timeout=30)
-        response.raise_for_status()
-
-        # Use tempfile to handle the file content
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            temp_file.write(response.content)
-            temp_path = temp_file.name
-
-        try:
-            # Load with UnstructuredPDFLoader
-            # Note: UnstructuredPDFLoader takes a file path, not a URL
-            loader = UnstructuredPDFLoader(temp_path)
-            docs = loader.load()
-
-            # Combine all document content
-            full_text = " ".join([doc.page_content for doc in docs])
-            
-            logging.info(f"Successfully extracted {len(full_text)} characters from PDF")
-            return full_text.strip()
-
-        finally:
-            # Clean up the temporary file
-            try:
-                os.unlink(temp_path)
-            except Exception as e:
-                logging.warning(f"Could not delete temporary file: {e}")
-
-    except Exception as e:
-        logging.error(f"PDF extraction failed: {e}")
-        return ""
-
-
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
     words = text.split()
@@ -941,46 +902,6 @@ def normalize_keys(obj):
     else:
         return obj
 
-def extract_json_from_text(text: str) -> dict:
-    """
-    Attempts to extract the first valid JSON object from a text string.
-    Returns an empty dict if extraction fails.
-    """
-    try:
-        # Match JSON object from first '{' to last '}'
-        match = re.search(r"{.*}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-    except Exception as e:
-        logging.error(f"JSON extraction failed: {e}")
-    return {}
-
-def extract_text_with_unstructured(pdf_url: str) -> str:
-    """
-    Download PDF from URL and extract text using UnstructuredPDFLoader.
-    Returns the extracted text content.
-    """
-    try:
-        response = requests.get(pdf_url, timeout=30)
-        response.raise_for_status()
-
-        # UnstructuredPDFLoader requires a file path, so we use a temp file.
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            temp_file.write(response.content)
-            temp_path = temp_file.name
-
-        try:
-            loader = UnstructuredPDFLoader(temp_path)
-            docs = loader.load()
-            full_text = " ".join([doc.page_content for doc in docs])
-            logging.info(f"Successfully extracted {len(full_text)} characters from PDF")
-            return full_text.strip()
-        finally:
-            os.unlink(temp_path)
-    except Exception as e:
-        logging.error(f"PDF extraction failed: {e}")
-        return ""
-        
 def clean_assets(assets: list) -> list:
     """
     Cleans OCR noise from asset descriptions and formats numeric values.
@@ -1020,24 +941,35 @@ class AuctionDetails(BaseModel):
     class Config:
         allow_population_by_field_name = True
         extra = "ignore"  
-        
- def generate_auction_insights(corporate_debtor: str, auction_notice_url: str, llm) -> dict:
-    """
-    Generate auction insights using a simplified, more reliable PDF extraction process.
-    """
+def generate_auction_insights(corporate_debtor: str, auction_notice_url: str, llm) -> dict:
     try:
-        # Step 1: Extract text using the UnstructuredPDFLoader
-        logging.info(f"Extracting text from URL: {auction_notice_url}")
-        extracted_text = extract_text_with_unstructured(auction_notice_url)
+       
+        raw_text, tables, scanned_pdf = fetch_text_from_url(auction_notice_url)
 
-        if not extracted_text.strip():
+        fallback_assets = extract_assets_from_text(raw_text)
+        use_fallback = not tables or len(tables[0]) <= 2
+
+        assets_for_prompt = None
+        markdown_table = ""
+        if use_fallback:
+            # Using logging.warning is better practice than print
+            logging.warning("[FALLBACK] Using extracted assets from text due to missing/bad table")
+            assets_for_prompt = clean_assets(fallback_assets)
+        else:
+            markdown_table = format_tables_as_markdown(tables)
+
+        if not raw_text.strip():
             return {"status": "error", "message": "No usable text found in auction notice."}
 
-        # Step 2: Truncate the text to fit within the LLM's context window
-        truncated_text = truncate_text(extracted_text)
-        logging.info(f"Text extracted successfully. Truncated to {len(truncated_text.split())} words.")
+        truncated_text = truncate_text(raw_text)
 
-        # Step 3: Define the prompt for the LLM
+       
+        assets_section = (
+            f"\nAssets (extracted via OCR fallback):\n{json.dumps(assets_for_prompt, indent=2)}"
+            if assets_for_prompt else markdown_table
+        )
+
+       
         prompt = f"""
 You are an expert financial analyst specializing in Indian auction notices. Your primary role is to audit the listing quality and risk.
 
@@ -1151,30 +1083,27 @@ Return the result in this **exact JSON format**:
     }}
 }}
 """
-        logging.info(f"Prompt length: {len(prompt.split())} words")
+   
+        logging.info(f"[INFO] Prompt length: {len(prompt.split())} words")
 
-        # Step 4: Invoke the LLM
-        response = llm.invoke(prompt)
-        logging.info("LLM response received.")
+        response = llm.invoke(prompt, max_tokens=2048, temperature=0.2, top_p=0.9)
+        logging.info(f"[INFO] Raw LLM response: {response.content[:500]} ...")
 
-        # Step 5: Parse the LLM response
         parsed = extract_json_from_text(response.content)
-        if not parsed:
-            logging.error("Failed to extract valid JSON from LLM response")
-            return {"status": "error", "message": "Failed to parse LLM response as JSON"}
-
         normalized = normalize_keys(parsed)
 
         return {
             "status": "success",
+            "scanned_pdf": scanned_pdf,
             "insights": normalized
         }
 
+    # FIX: Ensure this 'except' block is aligned exactly with the 'try' block above it.
     except Exception as e:
+        # 🔑 DEBUGGING CHANGE: Capture the exact exception message and return it.
         error_msg = f"An error occurred during insight generation: {str(e)}"
-        logging.error(f"generate_auction_insights failed: {error_msg}")
+        logging.error(f"[ERROR] generate_auction_insights failed: {error_msg}")
         return {"status": "error", "message": error_msg}
-
 
 if page == "🤖 AI Analysis":
     st.markdown('<div class="main-header">🤖 AI Analysis</div>', unsafe_allow_html=True)
@@ -1197,7 +1126,7 @@ if page == "🤖 AI Analysis":
     # Populate the selectbox with the filtered data
     auction_ids = df_filtered['auction_id'].dropna().unique()
     selected_id = st.selectbox("Select Auction ID (from CIN/LLPIN)", options=[""] + list(auction_ids))
-    
+   
     if selected_id:
         selected_row = df[df['auction_id'] == selected_id]
         if selected_row.empty:
@@ -1247,17 +1176,7 @@ if page == "🤖 AI Analysis":
                         # 🔑 DEBUGGING CHANGE: Display the full error trace from the 'message' field
                         st.error("Analysis Failed")
                         st.exception(Exception(insights_result["message"]))
-                        
+                       
                 except Exception as e:
                     # Catch any remaining unexpected errors outside the core function
                     st.error(f"An unexpected error occurred: {str(e)}")
-
-
-
-
-
-
-
-
-
-
