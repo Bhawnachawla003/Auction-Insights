@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 pymupdf
-pytesseract
+easyocr
 pillow
 langchain-groq
 python-dotenv
@@ -10,3 +10,11 @@ pydantic
 pdfplumber
 camelot-py
 pdf2image
+plotly
+streamlit
+python-docx
+PyPDF2
+babel
+numpy
+pandas
+pytesseract
