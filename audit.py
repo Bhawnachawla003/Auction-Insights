@@ -829,12 +829,16 @@ def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
     tables = []
 
     try:
-        images = convert_from_bytes(pdf_bytes.getvalue())
-        for img in images:
-            text = pytesseract.image_to_string(img)
+        doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
+        for page in doc:
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            img_array = np.array(img)
+            results = reader.readtext(img_array)
+            text = " ".join([res[1] for res in results])
             ocr_text += text.strip() + "\n"
     except Exception as e:
-        print(f"[ERROR] OCR failed: {e}")
+        logging.error(f"[ERROR] EasyOCR failed: {e}")
 
     return ocr_text, tables
 
