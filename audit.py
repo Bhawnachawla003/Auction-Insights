@@ -1020,6 +1020,7 @@ class AuctionDetails(BaseModel):
     class Config:
         allow_population_by_field_name = True
         extra = "ignore"  
+        
  def generate_auction_insights(corporate_debtor: str, auction_notice_url: str, llm) -> dict:
     """
     Generate auction insights using a simplified, more reliable PDF extraction process.
@@ -1037,7 +1038,6 @@ class AuctionDetails(BaseModel):
         logging.info(f"Text extracted successfully. Truncated to {len(truncated_text.split())} words.")
 
         # Step 3: Define the prompt for the LLM
-        # IMPORTANT: This prompt should be adjusted for a more reliable model and simplified JSON.
         prompt = f"""
 You are an expert financial analyst specializing in Indian auction notices. Your primary role is to audit the listing quality and risk.
 
@@ -1162,9 +1162,9 @@ Return the result in this **exact JSON format**:
         if not parsed:
             logging.error("Failed to extract valid JSON from LLM response")
             return {"status": "error", "message": "Failed to parse LLM response as JSON"}
-        
+
         normalized = normalize_keys(parsed)
-        
+
         return {
             "status": "success",
             "insights": normalized
@@ -1174,6 +1174,7 @@ Return the result in this **exact JSON format**:
         error_msg = f"An error occurred during insight generation: {str(e)}"
         logging.error(f"generate_auction_insights failed: {error_msg}")
         return {"status": "error", "message": error_msg}
+
 
 if page == "🤖 AI Analysis":
     st.markdown('<div class="main-header">🤖 AI Analysis</div>', unsafe_allow_html=True)
