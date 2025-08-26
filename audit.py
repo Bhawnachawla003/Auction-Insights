@@ -839,13 +839,9 @@ def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
 
 
 
+
 def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
-    """
-    Try pdfplumber first. If pdfplumber output is empty or 'insufficient'
-    fall back to rendered OCR (high-DPI).
-    Returns (raw_text, tables, scanned_pdf_flag)
-    """
-    response = requests.get(pdf_url, timeout=20)
+    response = requests.get(pdf_url, timeout=15)
     response.raise_for_status()
     pdf_bytes = response.content
     pdf_io = io.BytesIO(pdf_bytes)
@@ -856,39 +852,34 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
 
     try:
         with pdfplumber.open(pdf_io) as pdf:
-            for i, page in enumerate(pdf.pages, start=1):
+            for page in pdf.pages:
                 page_text = page.extract_text() or ""
                 raw_text += page_text.strip() + "\n"
 
-        # DEBUG: log a snippet so you can inspect why fallback may happen
-        logging.info(f"[PDFPLUMBER] Extracted total chars: {len(raw_text)}; sample: {raw_text[:400]!r}")
-
-        # Use heuristic to decide whether pdfplumber text is usable
-        if not is_text_sufficient(raw_text):
-            logging.info("[INFO] pdfplumber text insufficient — falling back to OCR")
+        # Checked if pdfplumber failed to extract text, and use OCR if so.
+        if not raw_text.strip():
+            print("[INFO] pdfplumber extracted no text. Falling back to OCR...")
             scanned_pdf = True
-            raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
-
-        # If pdfplumber found no tables, try optional Camelot only if needed
+            raw_text, tables = ocr_pdf(pdf_io)
+       
+        # If no tables were found, use Camelot as a fallback.
         if not tables and not scanned_pdf:
-            try:
-                tables = extract_tables_with_camelot(pdf_bytes)
-            except Exception as e:
-                logging.warning(f"[WARN] Camelot extraction failed or not available: {e}")
-                tables = []
+            print("[INFO] pdfplumber did not find any tables. Trying Camelot on All Pages...")
+            tables = extract_tables_with_camelot(pdf_bytes)
 
     except Exception as e:
-        logging.error(f"[ERROR] PDF extraction failed: {e}")
-        # If pdfplumber fails entirely, check via image heuristics and run OCR
+        print(f"[ERROR] PDF extraction failed: {e}")
+        # If pdfplumber fails entirely, we check if it's a scanned PDF
         if is_pdf_scanned(pdf_bytes):
             scanned_pdf = True
-            raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
+            raw_text, tables = ocr_pdf(pdf_io)
         else:
-            logging.info("[INFO] pdfplumber failed and document not flagged as scanned. returning empty results.")
+            print("[INFO] PDF extraction failed but document is not scanned. No OCR fallback.")
             raw_text = ""
             tables = []
 
     return raw_text.strip(), tables, scanned_pdf
+
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
     words = text.split()
