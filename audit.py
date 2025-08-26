@@ -937,9 +937,11 @@ class AuctionDetails(BaseModel):
    
     borrower_name: Optional[str] = None
    
-    class Config:
-        allow_population_by_field_name = True
-        extra = "ignore"  
+    model_config = {
+        "validate_by_name": True,   # allows population by field_name as well as alias
+        "extra": "ignore"           # ignore extra fields not defined in the model
+    }
+    
 def generate_auction_insights(corporate_debtor: str, auction_notice_url: str, llm) -> dict:
     try:
        
