@@ -6,7 +6,6 @@ from plotly.subplots import make_subplots
 import numpy as np
 import requests
 import tempfile
-from langchain_community.document_loaders import UnstructuredPDFLoader
 from pydantic import BaseModel, Field
 from docx import Document
 from PyPDF2 import PdfReader
