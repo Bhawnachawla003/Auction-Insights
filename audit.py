@@ -719,12 +719,12 @@ def extract_assets_from_text(text: str) -> list:
     reserve_price, emd_amount, incremental_bid = "", "", ""
 
     for line in text.splitlines():
-        line = line.strip().lower()
-        if "reserve price" in line:
+        line = line.strip()
+        if line.lower().startswith("reserve price"):
             reserve_price = line.split(":", 1)[-1].strip()
-        elif "emd" in line and "amount" in line:
+        elif line.lower().startswith("emd amount"):
             emd_amount = line.split(":", 1)[-1].strip()
-        elif "incremental bid" in line:
+        elif line.lower().startswith("incremental bid amount"):
             incremental_bid = line.split(":", 1)[-1].strip()
 
     current_asset = {
@@ -736,6 +736,7 @@ def extract_assets_from_text(text: str) -> list:
     }
     assets.append(current_asset)
     return assets
+
 
 def format_tables_as_markdown(tables: List[List[List[str]]]):
     markdown = ""
@@ -1005,8 +1006,6 @@ Please extract the following insights and return them as a structured JSON:
 - Copy the value EXACTLY as written in the notice (e.g., 'Rs. 90,00,000/-').
 - Preserve the numeric formatting (commas, Rs., /-).
 - DO NOT expand numbers into words (e.g., do not write 'Ninety Lakh' or 'Nine Crore').
-6. Do NOT assign the same value to 'Reserve Price' and 'EMD Amount' unless the auction notice explicitly states they are equal.
-- Carefully distinguish between the two. If only one is found, leave the other blank.
 
 Additional Task:
 Rank the Auction using the provided **RISK SCORING FRAMEWORK** and the three components:
