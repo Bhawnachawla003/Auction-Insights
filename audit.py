@@ -1130,17 +1130,13 @@ Return the result in this **exact JSON format**:
 
         parsed = extract_json_from_text(response.content)
 
-        if not parsed: 
-            logging.warning("[FALLBACK] JSON parse failed. Using regex parser on raw OCR text.")
-            parsed = parse_auction_text(raw_text)
 
-        normalized = normalize_keys(parsed)
+        regex_parsed = parse_auction_text(raw_text)
 
-        return {
-            "status": "success",
-            "scanned_pdf": scanned_pdf,
-            "insights": normalized
-        }
+
+        merged = {**regex_parsed, **parsed}
+
+        normalized = normalize_keys(merged)
 
 
     # FIX: Ensure this 'except' block is aligned exactly with the 'try' block above it.
