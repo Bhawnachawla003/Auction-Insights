@@ -1118,7 +1118,7 @@ Provide:
     8. **Listing Quality Warning:** Report on photos/description/ambiguity. (Example: Listing quality is low. Property photos and detailed descriptions require significant improvement for better transparency.)
 
 Return the result in this **exact JSON format**:
-"""
+
 {
     "Corporate Debtor": "...",
     "Auction Date": "...",
