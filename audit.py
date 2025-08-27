@@ -1029,7 +1029,7 @@ Please extract the following insights and return them as a structured JSON:
 1. Extract all general details (e.g. dates, contacts, platform link, etc.) exactly as written — do not infer or modify them.
 2. Use the provided markdown table or OCR asset JSON (whichever is present) to populate the `"Assets"` list. **This table/JSON is the definitive source for asset details.**
 3. One row = one asset. Do not duplicate or infer missing rows.
-4. If values are missing, leave them blank — do not guess.
+4. If values are missing, leave them blank — do not guess. **Crucially, if a value like 'Incremental Bid Amount' is not present in the source text or table, leave its field empty.**
 5. Find the exact 'Reserve Price', 'EMD Amount', and 'Incremental Bid Amount' from the provided raw text, paying close attention to their proximity to these keywords. The Assets table should be a final cross-reference. For these three fields, you MUST include the value and its unit (e.g., '20.61 Crore', '1.00 Crore', '1,00,000 Rs.') in a single string.
 
 Additional Task:
