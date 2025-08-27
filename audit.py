@@ -952,12 +952,11 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
 
     # ---------- Final Safety Check ----------
     if not raw_text.strip():
-        logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
-        raw_text = "[ERROR] No readable text extracted from PDF."
+    logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
+    return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
 
     logging.info(f"[DEBUG] Extracted text preview: {raw_text[:500]}...")
     return raw_text.strip(), tables, scanned_pdf
-
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
     words = text.split()
@@ -1120,7 +1119,7 @@ Provide:
 
 Return the result in this **exact JSON format**:
 
-{{
+"""{
     "Corporate Debtor": "...",
     "Auction Date": "...",
     "Auction Time": "...",
@@ -1132,16 +1131,16 @@ Return the result in this **exact JSON format**:
     "Contact Email": "...",
     "Contact Mobile": "...",
     "Assets": [
-        {{
+        {
             "Block Name": "...",
             "Asset Description": "...",
             "Auction Time": "...",
             "Reserve Price": "...",
             "EMD Amount": "...",
             "Incremental Bid Amount": "..."
-        }}
+        }
     ],
-    "Ranking": {{
+    "Ranking": {
         "Legal Compliance Score": 0,
         "Economical Score": 0,
         "Market Trends Score": 0,
@@ -1157,8 +1156,9 @@ Return the result in this **exact JSON format**:
             "...",
             "..."
         ]
-    }}
-}}
+    },
+    "debug_text": "..."
+}
 """
    
         logging.info(f"[INFO] Prompt length: {len(prompt.split())} words")
@@ -1173,7 +1173,10 @@ Return the result in this **exact JSON format**:
         
         return {
             "status": "success",
-            "insights": normalized
+            "insights": {
+                **normalized,
+                "debug_text": raw_text[:1000]  # 👈 show first 1000 chars of extracted text
+            }
         }
 
 
@@ -1257,6 +1260,10 @@ if page == "🤖 AI Analysis":
                         if isinstance(insight_data, dict):
                             # Assuming display_insights is defined earlier and correct
                             display_insights(insight_data)
+
+                        if "debug_text" in insight_data:
+                        st.markdown("### Debug: Extracted OCR Text (first 1000 chars)")
+                        st.text(insight_data["debug_text"])
                         else:
                             st.markdown(insight_data)
                     else:
