@@ -714,24 +714,27 @@ def extract_json_from_text(text: str) -> dict:
 
 def extract_assets_from_text(text: str) -> list:
     assets = []
+    reserve_price, emd_amount, incremental_bid = "", "", ""
 
-    # Find values based on keywords in the text
-    reserve_price_match = re.search(r"Reserve Price[:\s]*([^\n]+)", text, re.IGNORECASE)
-    emd_amount_match = re.search(r"EMD Amount[:\s]*([^\n]+)", text, re.IGNORECASE)
-    incremental_bid_match = re.search(r"Incremental Bid Amount[:\s]*([^\n]+)", text, re.IGNORECASE)
+    for line in text.splitlines():
+        line = line.strip()
+        if line.lower().startswith("reserve price"):
+            reserve_price = line.split(":", 1)[-1].strip()
+        elif line.lower().startswith("emd amount"):
+            emd_amount = line.split(":", 1)[-1].strip()
+        elif line.lower().startswith("incremental bid amount"):
+            incremental_bid = line.split(":", 1)[-1].strip()
 
     current_asset = {
-        "block_name": "",  # You can keep your existing block_name logic if needed
-        "asset_description": "",  # Reuse your description logic if required
-        "reserve_price": reserve_price_match.group(1).strip() if reserve_price_match else "",
-        "emd_amount": emd_amount_match.group(1).strip() if emd_amount_match else "",
-        "incremental_bid_amount": incremental_bid_match.group(1).strip() if incremental_bid_match else ""
+        "block_name": "",
+        "asset_description": "",
+        "reserve_price": reserve_price,
+        "emd_amount": emd_amount,
+        "incremental_bid_amount": incremental_bid,
     }
-
     assets.append(current_asset)
     return assets
 
-   
 def format_tables_as_markdown(tables: List[List[List[str]]]):
     markdown = ""
     for table in tables:
