@@ -890,7 +890,7 @@ def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
 
         # ---------- Save a preview to file ----------
         with open("ocr_debug_output.txt", "w", encoding="utf-8") as f:
-            f.write(ocr_text[:2000])  # save first 2000 characters
+            f.write(ocr_text)  
 
         logging.info("[DEBUG] OCR text saved to ocr_debug_output.txt")
 
@@ -953,7 +953,7 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
     # ---------- Final Safety Check ----------
     if not raw_text.strip():
         logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
-        return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
+        return ocr_pdf(io.BytesIO(pdf_bytes))[0], tables, True
 
     logging.info(f"[DEBUG] Extracted text preview: {raw_text[:500]}...")
     return raw_text.strip(), tables, scanned_pdf
@@ -1263,7 +1263,7 @@ if page == "🤖 AI Analysis":
 
                         if "debug_text" in insight_data:
                             st.markdown("### Debug: Extracted OCR Text (first 1000 chars)")
-                            st.text(insight_data["debug_text"])
+                            st.text_area("Debug: Extracted OCR Text", insight_data["debug_text"], height=300)
                         else:
                             st.markdown(insight_data)
                     else:
