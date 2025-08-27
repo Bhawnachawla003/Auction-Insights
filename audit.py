@@ -713,7 +713,7 @@ def extract_json_from_text(text: str) -> dict:
 
     return clean_assets(all_assets)
 
-def extract_assets_from_text(text: str) -> list:
+
 def extract_assets_from_text(text: str) -> list:
     assets = []
     reserve_price, emd_amount, incremental_bid = "", "", ""
