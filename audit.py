@@ -657,28 +657,9 @@ def display_insights(insights: dict):
             st.markdown(f"**Block Name:** {asset.get('block_name', '')}")
             st.markdown(f"**Description:** {asset.get('asset_description', '')}")
             st.markdown(f"**Auction Time:** {asset.get('auction_time', '')}")
-
-            reserve_price = asset.get("reserve_price", "")
-            emd_amount = asset.get("emd_amount", "")
-            incremental = asset.get("incremental_bid_amount", "")
-
-            st.markdown(f"**Reserve Price:** {reserve_price}")
-            st.markdown(f"**EMD Amount:** {emd_amount}")
-            st.markdown(f"**Incremental Bid Amount:** {incremental}")
-
-           # 🔎 Validate each field and show warning if mismatch
-            valid, warning = validate_price_field(reserve_price, "Reserve Price")
-            if not valid:
-                st.warning(warning)
-
-            valid, warning = validate_price_field(emd_amount, "EMD Amount")
-            if not valid:
-                st.warning(warning)
-
-            valid, warning = validate_price_field(incremental, "Incremental Bid Amount")
-            if not valid:
-                st.warning(warning)
-
+            st.markdown(f"**Reserve Price:** {asset.get('reserve_price', '')}")
+            st.markdown(f"**EMD Amount:** {asset.get('emd_amount', '')}")
+            st.markdown(f"**Incremental Bid Amount:** {asset.get('incremental_bid_amount', '')}")
             st.markdown("---")
 
     # Financial Terms
@@ -713,6 +694,7 @@ def display_insights(insights: dict):
             st.markdown("**Reference Summary:**")
             for ref in references:
                 st.markdown(f"- {ref}")
+
 
 # Load data
 df, latest_csv = load_auction_data()
