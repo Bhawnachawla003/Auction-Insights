@@ -596,6 +596,43 @@ elif page == "📊 Basic Analytics" and df is not None:
   #  return easyocr.Reader(['en']) 
     # reader = get_easyocr_reader()
 
+from num2words import num2words
+
+import re
+
+def validate_price_field(price_text: str, field_name: str):
+    """
+    Validates if the numeric and words in a price field match.
+    Returns (is_valid, warning_message).
+    """
+    if not price_text:
+        return True, ""
+
+    # Extract numeric part (remove commas, Rs, /-)
+    num_match = re.search(r"([\d,]+)", price_text)
+    if not num_match:
+        return True, ""  # nothing to check
+    
+    numeric_val = int(num_match.group(1).replace(",", ""))
+
+    # Convert to words in Indian numbering
+    num_words = num2words(numeric_val, lang="en_IN")
+    num_words = num_words.replace(",", "").lower()
+
+    # Extract the words part (in parentheses)
+    words_match = re.search(r"\(([^)]+)\)", price_text)
+    if not words_match:
+        return True, ""  # no words to check
+
+    words_in_text = words_match.group(1).lower()
+
+    # Check mismatch
+    if words_in_text not in num_words:
+        return False, f"⚠️ Mismatch in {field_name}: Numeric = {numeric_val:,}, Words say '{words_in_text}'. Trust the number."
+    
+    return True, ""
+
+
 def display_insights(insights: dict):
     """Display auction insights in Streamlit directly, without expanders."""
     st.success("Insights generated successfully!")
@@ -619,10 +656,29 @@ def display_insights(insights: dict):
             st.markdown(f"**Block Name:** {asset.get('block_name', '')}")
             st.markdown(f"**Description:** {asset.get('asset_description', '')}")
             st.markdown(f"**Auction Time:** {asset.get('auction_time', '')}")
-            st.markdown(f"**Reserve Price:** {asset.get('reserve_price', '')}")
-            st.markdown(f"**EMD Amount:** {asset.get('emd_amount', '')}")
-            st.markdown(f"**Incremental Bid Amount:** {asset.get('incremental_bid_amount', '')}")
-            st.markdown("---")
+
+            reserve_price = asset.get("reserve_price", "")
+            emd_amount = asset.get("emd_amount", "")
+            incremental = asset.get("incremental_bid_amount", "")
+
+            st.markdown(f"**Reserve Price:** {reserve_price}")
+            st.markdown(f"**EMD Amount:** {emd_amount}")
+            st.markdown(f"**Incremental Bid Amount:** {incremental}")
+
+           # 🔎 Validate each field and show warning if mismatch
+           valid, warning = validate_price_field(reserve_price, "Reserve Price")
+           if not valid:
+               st.warning(warning)
+
+           valid, warning = validate_price_field(emd_amount, "EMD Amount")
+           if not valid:
+               st.warning(warning)
+
+           valid, warning = validate_price_field(incremental, "Incremental Bid Amount")
+           if not valid:
+               st.warning(warning)
+
+           st.markdown("---")
 
     # Financial Terms
     financial = insights.get("financial_terms", {})
