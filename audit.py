@@ -666,19 +666,19 @@ def display_insights(insights: dict):
             st.markdown(f"**Incremental Bid Amount:** {incremental}")
 
            # 🔎 Validate each field and show warning if mismatch
-           valid, warning = validate_price_field(reserve_price, "Reserve Price")
-           if not valid:
-               st.warning(warning)
+            valid, warning = validate_price_field(reserve_price, "Reserve Price")
+            if not valid:
+                st.warning(warning)
 
-           valid, warning = validate_price_field(emd_amount, "EMD Amount")
-           if not valid:
-               st.warning(warning)
+            valid, warning = validate_price_field(emd_amount, "EMD Amount")
+            if not valid:
+                st.warning(warning)
 
-           valid, warning = validate_price_field(incremental, "Incremental Bid Amount")
-           if not valid:
-               st.warning(warning)
+            valid, warning = validate_price_field(incremental, "Incremental Bid Amount")
+            if not valid:
+                st.warning(warning)
 
-           st.markdown("---")
+            st.markdown("---")
 
     # Financial Terms
     financial = insights.get("financial_terms", {})
