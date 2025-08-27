@@ -857,7 +857,7 @@ reader = easyocr.Reader(['en'])
 
 def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF and returns extracted text + empty table list.
+    Runs OCR on all pages of a PDF with preprocessing for better accuracy.
     """
     ocr_text = ""
     tables = []
@@ -865,16 +865,23 @@ def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
     try:
         doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
         for page in doc:
-            pix = page.get_pixmap()
+            pix = page.get_pixmap(dpi=300)  # higher DPI = clearer OCR
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+            # Convert to grayscale & threshold (binarization)
+            img = img.convert("L")
+            img = img.point(lambda x: 0 if x < 180 else 255, '1')
+
             img_array = np.array(img)
-            results = reader.readtext(img_array)
-            text = " ".join([res[1] for res in results])
+            results = reader.readtext(img_array, detail=0, paragraph=True)  # detail=0 = only text
+            text = " ".join(results)
             ocr_text += text.strip() + "\n"
+
     except Exception as e:
         logging.error(f"[ERROR] EasyOCR failed: {e}")
 
     return ocr_text, tables
+
 
 
 
@@ -896,27 +903,24 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
                 page_text = page.extract_text() or ""
                 raw_text += page_text.strip() + "\n"
 
-        # Checked if pdfplumber failed to extract text, and use OCR if so.
-        if not raw_text.strip():
-            print("[INFO] pdfplumber extracted no text. Falling back to OCR...")
+        # If too short or garbled, switch to OCR
+        if len(raw_text.strip()) < 200 or "###" in raw_text or raw_text.count(" ") < 10:
+            print("[INFO] pdfplumber text looks garbled. Forcing OCR...")
             scanned_pdf = True
             raw_text, tables = ocr_pdf(pdf_io)
-       
-        # If no tables were found, use Camelot as a fallback.
+
+        # If no tables were found, try Camelot
         if not tables and not scanned_pdf:
             print("[INFO] pdfplumber did not find any tables. Trying Camelot on All Pages...")
             tables = extract_tables_with_camelot(pdf_bytes)
 
     except Exception as e:
         print(f"[ERROR] PDF extraction failed: {e}")
-        # If pdfplumber fails entirely, we check if it's a scanned PDF
         if is_pdf_scanned(pdf_bytes):
             scanned_pdf = True
             raw_text, tables = ocr_pdf(pdf_io)
         else:
-            print("[INFO] PDF extraction failed but document is not scanned. No OCR fallback.")
-            raw_text = ""
-            tables = []
+            raw_text, tables = "", []
 
     return raw_text.strip(), tables, scanned_pdf
 
