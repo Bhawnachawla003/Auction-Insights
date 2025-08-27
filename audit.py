@@ -952,8 +952,8 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
 
     # ---------- Final Safety Check ----------
     if not raw_text.strip():
-    logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
-    return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
+        logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
+        return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
 
     logging.info(f"[DEBUG] Extracted text preview: {raw_text[:500]}...")
     return raw_text.strip(), tables, scanned_pdf
