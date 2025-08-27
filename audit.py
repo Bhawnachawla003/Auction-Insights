@@ -719,12 +719,12 @@ def extract_assets_from_text(text: str) -> list:
     reserve_price, emd_amount, incremental_bid = "", "", ""
 
     for line in text.splitlines():
-        line = line.strip()
-        if line.lower().startswith("reserve price"):
+        line = line.strip().lower()
+        if "reserve price" in line:
             reserve_price = line.split(":", 1)[-1].strip()
-        elif line.lower().startswith("emd amount"):
+        elif "emd" in line and "amount" in line:
             emd_amount = line.split(":", 1)[-1].strip()
-        elif line.lower().startswith("incremental bid amount"):
+        elif "incremental bid" in line:
             incremental_bid = line.split(":", 1)[-1].strip()
 
     current_asset = {
@@ -845,6 +845,14 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
             tables = []
 
     return raw_text.strip(), tables, scanned_pdf
+
+def validate_assets(assets: list) -> list:
+    for asset in assets:
+        if asset.get("reserve_price") == asset.get("emd_amount") and asset.get("reserve_price"):
+            # If both are identical, keep Reserve Price, blank out EMD (safer fallback)
+            asset["emd_amount"] = ""
+    return assets
+
 
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
@@ -1003,6 +1011,8 @@ Please extract the following insights and return them as a structured JSON:
 - Copy the value EXACTLY as written in the notice (e.g., 'Rs. 90,00,000/-').
 - Preserve the numeric formatting (commas, Rs., /-).
 - DO NOT expand numbers into words (e.g., do not write 'Ninety Lakh' or 'Nine Crore').
+6. Do NOT assign the same value to 'Reserve Price' and 'EMD Amount' unless the auction notice explicitly states they are equal.
+- Carefully distinguish between the two. If only one is found, leave the other blank.
 
 Additional Task:
 Rank the Auction using the provided **RISK SCORING FRAMEWORK** and the three components:
@@ -1156,6 +1166,7 @@ if page == "🤖 AI Analysis":
                                 insight_data["assets"] = [
                                     enforce_numeric_fields(asset) for asset in insight_data["assets"]
                                 ]
+                                insight_data["assets"] = validate_assets(insight_data["assets"])
                             display_insights(insight_data)
                         else:
                             st.markdown(insight_data)
@@ -1163,7 +1174,7 @@ if page == "🤖 AI Analysis":
                     else:
                         # 🔑 DEBUGGING CHANGE: Display the full error trace from the 'message' field
                         st.error("Analysis Failed")
-                        st.exception(Exception(insights_result["message"]))
+                        st.error(insights_result["message"])
                        
                 except Exception as e:
                     # Catch any remaining unexpected errors outside the core function
