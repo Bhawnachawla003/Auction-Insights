@@ -590,6 +590,11 @@ elif page == "📊 Basic Analytics" and df is not None:
 
 # AI Analysis Page
 
+@st.cache_resource 
+def get_easyocr_reader(): 
+    return easyocr.Reader(['en']) 
+    reader = get_easyocr_reader()
+
 def display_insights(insights: dict):
     """Display auction insights in Streamlit directly, without expanders."""
     st.success("Insights generated successfully!")
@@ -821,23 +826,36 @@ def extract_tables_with_camelot(pdf_bytes: bytes, page_number: int = None) -> Li
        
     return tables
 
-def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
+# Initialize EasyOCR Reader (English example)
+reader = easyocr.Reader(['en'])
+
+def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF and returns extracted text + empty table list.
+    Runs OCR on all pages of a PDF using EasyOCR.
+    Returns extracted text + empty table list.
     """
     ocr_text = ""
     tables = []
-
     try:
-        images = convert_from_bytes(pdf_bytes.getvalue())
-        for img in images:
-            text = pytesseract.image_to_string(img)
+        doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
+        for page in doc:
+            # Render page as image
+            pix = page.get_pixmap(dpi=300)  # higher DPI helps OCR
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+           
+            # Preprocess for better OCR
+            img = img.convert("L")  # grayscale
+            img = img.point(lambda x: 0 if x < 180 else 255, '1')  # binarization
+           
+            img_array = np.array(img)
+            results = reader.readtext(img_array, detail=1, paragraph=True)
+
+            # Extract recognized text
+            text = " ".join([res[1] for res in results])
             ocr_text += text.strip() + "\n"
     except Exception as e:
-        print(f"[ERROR] OCR failed: {e}")
-
+        logging.error(f"[ERROR] EasyOCR failed: {e}")
     return ocr_text, tables
-
 
 
 
