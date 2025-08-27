@@ -890,6 +890,22 @@ def clean_assets(assets: list) -> list:
 
     return cleaned_assets
 
+def enforce_numeric_fields(asset: dict) -> dict:
+    """
+    Ensure Reserve Price, EMD, Incremental Bid keep ONLY the numeric Rs. value
+    (and strip wrong word expansions like 'Nine Crore').
+    """
+    for field in ["reserve_price", "emd_amount", "incremental_bid_amount"]:
+        if asset.get(field):
+            # Keep only the "Rs. ..." part
+            match = re.search(r"(Rs\.\s*[\d,]+/-)", asset[field])
+            if match:
+                asset[field] = match.group(1)  # keep exact numeric part only
+            else:
+                # If no match, keep original string but strip extra words
+                asset[field] = asset[field].split("(")[0].strip()
+    return asset
+
 class AuctionDetails(BaseModel):
     name_of_corporate_debtor_pdf_: str = Field(..., alias="Name of Corporate Debtor (PDF)")
     auction_notice_url: str = Field(..., alias="Auction Notice URL")
@@ -983,7 +999,10 @@ Please extract the following insights and return them as a structured JSON:
 2. Use the provided markdown table or OCR asset JSON (whichever is present) to populate the `"Assets"` list. **This table/JSON is the definitive source for asset details.**
 3. One row = one asset. Do not duplicate or infer missing rows.
 4. If values are missing, leave them blank — do not guess. **Crucially, if a value like 'Incremental Bid Amount' is not present in the source text or table, leave its field empty.**
-5. Find the exact 'Reserve Price', 'EMD Amount', and 'Incremental Bid Amount' from the provided raw text, paying close attention to their proximity to these keywords. The Assets table should be a final cross-reference. For these three fields, you MUST include the value and its unit (e.g., '20.61 Crore', '1.00 Crore', '1,00,000 Rs.') in a single string.
+5. For Reserve Price, EMD Amount, and Incremental Bid Amount:
+- Copy the value EXACTLY as written in the notice (e.g., 'Rs. 90,00,000/-').
+- Preserve the numeric formatting (commas, Rs., /-).
+- DO NOT expand numbers into words (e.g., do not write 'Ninety Lakh' or 'Nine Crore').
 
 Additional Task:
 Rank the Auction using the provided **RISK SCORING FRAMEWORK** and the three components:
@@ -1133,10 +1152,14 @@ if page == "🤖 AI Analysis":
                     if insights_result["status"] == "success":
                         insight_data = insights_result["insights"]
                         if isinstance(insight_data, dict):
-                            # Assuming display_insights is defined earlier and correct
+                            if "assets" in insight_data and isinstance(insight_data["assets"], list):
+                                insight_data["assets"] = [
+                                    enforce_numeric_fields(asset) for asset in insight_data["assets"]
+                                ]
                             display_insights(insight_data)
                         else:
                             st.markdown(insight_data)
+                            
                     else:
                         # 🔑 DEBUGGING CHANGE: Display the full error trace from the 'message' field
                         st.error("Analysis Failed")
