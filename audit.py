@@ -591,10 +591,10 @@ elif page == "📊 Basic Analytics" and df is not None:
 
 # AI Analysis Page
 
-@st.cache_resource 
-def get_easyocr_reader(): 
-    return easyocr.Reader(['en']) 
-    reader = get_easyocr_reader()
+# @st.cache_resource 
+# def get_easyocr_reader(): 
+  #  return easyocr.Reader(['en']) 
+    # reader = get_easyocr_reader()
 
 def display_insights(insights: dict):
     """Display auction insights in Streamlit directly, without expanders."""
@@ -781,7 +781,7 @@ def extract_tables_with_camelot(pdf_bytes: bytes, page_number: int = None) -> Li
     return tables
 
 # Initialize EasyOCR Reader (English example)
-reader = easyocr.Reader(['en'])
+# reader = easyocr.Reader(['en'])
 
 def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
     """
