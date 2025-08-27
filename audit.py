@@ -710,6 +710,31 @@ def extract_json_from_text(text: str) -> dict:
 
     return clean_assets(all_assets)
 
+def parse_auction_text(raw_text: str) -> dict:
+    """Parse OCR text into structured dict using regex fallback."""
+    insights = {}
+    patterns = {
+        "corporate_debtor": r"Corporate Debtor[:\-]?\s*(.*)",
+        "auction_date": r"Auction Date[:\-]?\s*(.*)",
+        "auction_time": r"Auction Time[:\-]?\s*(.*)",
+        "inspection_date": r"Inspection Date[:\-]?\s*(.*)",
+        "inspection_time": r"Inspection Time[:\-]?\s*(.*)",
+        "auction_platform": r"Auction Platform[:\-]?\s*(.*)",
+        "contact_email": r"[\w\.-]+@[\w\.-]+",
+        "contact_mobile": r"Contact Mobile[:\-]?\s*(\d+)",
+        "reserve_price": r"Reserve Price[:\-]?\s*(\S+)",
+        "emd_amount": r"EMD Amount[:\-]?\s*(\S+)",
+        "incremental_bid_amount": r"Incremental Bid Amount[:\-]?\s*(\S+)"
+    }
+
+    for key, pat in patterns.items():
+        m = re.search(pat, raw_text, re.IGNORECASE)
+        if m:
+            insights[key] = m.group(1).strip()
+
+    return insights
+
+
 def extract_assets_from_text(text: str) -> list:
     def is_valid_price(value: str) -> bool:
         """Check if a string is a valid numeric price (not a date, year, or phone number)."""
@@ -1104,6 +1129,11 @@ Return the result in this **exact JSON format**:
         logging.info(f"[INFO] Raw LLM response: {response.content[:500]} ...")
 
         parsed = extract_json_from_text(response.content)
+
+        if not parsed: 
+            logging.warning("[FALLBACK] JSON parse failed. Using regex parser on raw OCR text.")
+            parsed = parse_auction_text(raw_text)
+
         normalized = normalize_keys(parsed)
 
         return {
@@ -1111,6 +1141,7 @@ Return the result in this **exact JSON format**:
             "scanned_pdf": scanned_pdf,
             "insights": normalized
         }
+
 
     # FIX: Ensure this 'except' block is aligned exactly with the 'try' block above it.
     except Exception as e:
