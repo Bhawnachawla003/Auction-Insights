@@ -857,28 +857,45 @@ reader = easyocr.Reader(['en'])
 
 def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF with preprocessing for better accuracy.
+    Runs OCR on all pages of a PDF with preprocessing.
+    Falls back to EasyOCR if PyMuPDF plain text is empty.
+    Saves debug OCR text into a local file for inspection.
     """
     ocr_text = ""
     tables = []
 
     try:
         doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
-        for page in doc:
-            pix = page.get_pixmap(dpi=300)  # higher DPI = clearer OCR
+        for page_num, page in enumerate(doc, start=1):
+            # Try PyMuPDF native text extraction first
+            text = page.get_text("text")
+            if text and len(text.strip()) > 50:
+                logging.info(f"[OCR DEBUG] Page {page_num} - using PyMuPDF text")
+                ocr_text += text.strip() + "\n"
+                continue
+
+            # Otherwise fallback to OCR
+            pix = page.get_pixmap(dpi=300)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-            # Convert to grayscale & threshold (binarization)
+            # Preprocess for better OCR
             img = img.convert("L")
             img = img.point(lambda x: 0 if x < 180 else 255, '1')
 
             img_array = np.array(img)
-            results = reader.readtext(img_array, detail=0, paragraph=True)  # detail=0 = only text
-            text = " ".join(results)
-            ocr_text += text.strip() + "\n"
+            results = reader.readtext(img_array, detail=0, paragraph=True)
+            ocr_text_page = " ".join(results).strip()
+            logging.info(f"[OCR DEBUG] Page {page_num} - EasyOCR extracted {len(ocr_text_page)} characters")
+            ocr_text += ocr_text_page + "\n"
+
+        # ---------- Save a preview to file ----------
+        with open("ocr_debug_output.txt", "w", encoding="utf-8") as f:
+            f.write(ocr_text[:2000])  # save first 2000 characters
+
+        logging.info("[DEBUG] OCR text saved to ocr_debug_output.txt")
 
     except Exception as e:
-        logging.error(f"[ERROR] EasyOCR failed: {e}")
+        logging.error(f"[ERROR] OCR failed: {e}")
 
     return ocr_text, tables
 
