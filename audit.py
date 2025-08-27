@@ -832,32 +832,24 @@ reader = easyocr.Reader(['en'])
 
 def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF using EasyOCR.
-    Returns extracted text + empty table list.
+    Runs OCR on all pages of a PDF and returns extracted text + empty table list.
     """
     ocr_text = ""
     tables = []
+
     try:
         doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
         for page in doc:
-            # Render page as image
-            pix = page.get_pixmap(dpi=300)  # higher DPI helps OCR
+            pix = page.get_pixmap()
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-           
-            # Preprocess for better OCR
-            img = img.convert("L")  # grayscale
-            img = img.point(lambda x: 0 if x < 180 else 255, '1')  # binarization
-           
             img_array = np.array(img)
-            results = reader.readtext(img_array, detail=1, paragraph=True)
-
-            # Extract recognized text
+            results = reader.readtext(img_array)
             text = " ".join([res[1] for res in results])
             ocr_text += text.strip() + "\n"
     except Exception as e:
         logging.error(f"[ERROR] EasyOCR failed: {e}")
-    return ocr_text, tables
 
+    return ocr_text, tables
 
 
 
