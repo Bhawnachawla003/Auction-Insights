@@ -3,6 +3,7 @@ uvicorn
 pymupdf
 easyocr
 pillow
+num2words
 langchain-groq
 python-dotenv
 requests
