@@ -1262,8 +1262,8 @@ if page == "🤖 AI Analysis":
                             display_insights(insight_data)
 
                         if "debug_text" in insight_data:
-                        st.markdown("### Debug: Extracted OCR Text (first 1000 chars)")
-                        st.text(insight_data["debug_text"])
+                            st.markdown("### Debug: Extracted OCR Text (first 1000 chars)")
+                            st.text(insight_data["debug_text"])
                         else:
                             st.markdown(insight_data)
                     else:
