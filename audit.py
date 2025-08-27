@@ -1119,7 +1119,7 @@ Provide:
 
 Return the result in this **exact JSON format**:
 
-{
+{{
     "Corporate Debtor": "...",
     "Auction Date": "...",
     "Auction Time": "...",
@@ -1131,16 +1131,16 @@ Return the result in this **exact JSON format**:
     "Contact Email": "...",
     "Contact Mobile": "...",
     "Assets": [
-        {
+        {{
             "Block Name": "...",
             "Asset Description": "...",
             "Auction Time": "...",
             "Reserve Price": "...",
             "EMD Amount": "...",
             "Incremental Bid Amount": "..."
-        }
+        }}
     ],
-    "Ranking": {
+    "Ranking": {{
         "Legal Compliance Score": 0,
         "Economical Score": 0,
         "Market Trends Score": 0,
@@ -1156,11 +1156,11 @@ Return the result in this **exact JSON format**:
             "...",
             "..."
         ]
-    },
+    }},
     "debug_text": "..."
-}
+}}
 """
-   
+
         logging.info(f"[INFO] Prompt length: {len(prompt.split())} words")
 
         response = llm.invoke(prompt, max_tokens=2048, temperature=0.2, top_p=0.9)
