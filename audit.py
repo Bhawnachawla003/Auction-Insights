@@ -592,47 +592,10 @@ elif page == "📊 Basic Analytics" and df is not None:
 
 # AI Analysis Page
 
-# @st.cache_resource 
-# def get_easyocr_reader(): 
-  #  return easyocr.Reader(['en']) 
-    # reader = get_easyocr_reader()
-
-from num2words import num2words
-
-import re
-
-def validate_price_field(price_text: str, field_name: str):
-    """
-    Validates if the numeric and words in a price field match.
-    Returns (is_valid, warning_message).
-    """
-    if not price_text:
-        return True, ""
-
-    # Extract numeric part (remove commas, Rs, /-)
-    num_match = re.search(r"([\d,]+)", price_text)
-    if not num_match:
-        return True, ""  # nothing to check
-    
-    numeric_val = int(num_match.group(1).replace(",", ""))
-
-    # Convert to words in Indian numbering
-    num_words = num2words(numeric_val, lang="en_IN")
-    num_words = num_words.replace(",", "").lower()
-
-    # Extract the words part (in parentheses)
-    words_match = re.search(r"\(([^)]+)\)", price_text)
-    if not words_match:
-        return True, ""  # no words to check
-
-    words_in_text = words_match.group(1).lower()
-
-    # Check mismatch
-    if words_in_text not in num_words:
-        return False, f"⚠️ Mismatch in {field_name}: Numeric = {numeric_val:,}, Words say '{words_in_text}'. Trust the number."
-    
-    return True, ""
-
+# @st.cache_resource
+# def get_easyocr_reader():
+#    return easyocr.Reader(['en'])
+  #  reader = get_easyocr_reader()
 
 def display_insights(insights: dict):
     """Display auction insights in Streamlit directly, without expanders."""
@@ -695,7 +658,6 @@ def display_insights(insights: dict):
             for ref in references:
                 st.markdown(f"- {ref}")
 
-
 # Load data
 df, latest_csv = load_auction_data()
 
@@ -751,6 +713,7 @@ def extract_json_from_text(text: str) -> dict:
 
     return clean_assets(all_assets)
 
+def extract_assets_from_text(text: str) -> list:
 def extract_assets_from_text(text: str) -> list:
     assets = []
     reserve_price, emd_amount, incremental_bid = "", "", ""
@@ -1182,4 +1145,3 @@ if page == "🤖 AI Analysis":
                 except Exception as e:
                     # Catch any remaining unexpected errors outside the core function
                     st.error(f"An unexpected error occurred: {str(e)}")
-
