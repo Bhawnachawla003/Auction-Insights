@@ -1137,6 +1137,22 @@ Return the result in this **exact JSON format**:
         merged = {**regex_parsed, **parsed}
 
         normalized = normalize_keys(merged)
+                parsed = extract_json_from_text(response.content)
+        regex_parsed = parse_auction_text(raw_text)
+        merged = {**regex_parsed, **parsed}
+        normalized = normalize_keys(merged)
+
+        return {
+            "status": "success",
+            "insights": normalized
+        }
+
+    except Exception as e:
+        # 🔑 DEBUGGING CHANGE: Capture the exact exception message and return it.
+        error_msg = f"An error occurred during insight generation: {str(e)}"
+        logging.error(f"[ERROR] generate_auction_insights failed: {error_msg}")
+        return {"status": "error", "message": error_msg}
+
 
 
     # FIX: Ensure this 'except' block is aligned exactly with the 'try' block above it.
