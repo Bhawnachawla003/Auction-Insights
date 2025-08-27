@@ -590,12 +590,6 @@ elif page == "📊 Basic Analytics" and df is not None:
 
 # AI Analysis Page
 
-@st.cache_resource
-def get_easyocr_reader():
-    return easyocr.Reader(['en'])
-
-reader = get_easyocr_reader()
-
 def display_insights(insights: dict):
     """Display auction insights in Streamlit directly, without expanders."""
     st.success("Insights generated successfully!")
@@ -709,31 +703,6 @@ def extract_json_from_text(text: str) -> dict:
    
 
     return clean_assets(all_assets)
-
-def parse_auction_text(raw_text: str) -> dict:
-    """Parse OCR text into structured dict using regex fallback."""
-    insights = {}
-    patterns = {
-        "corporate_debtor": r"Corporate Debtor[:\-]?\s*(.*)",
-        "auction_date": r"Auction Date[:\-]?\s*(.*)",
-        "auction_time": r"Auction Time[:\-]?\s*(.*)",
-        "inspection_date": r"Inspection Date[:\-]?\s*(.*)",
-        "inspection_time": r"Inspection Time[:\-]?\s*(.*)",
-        "auction_platform": r"Auction Platform[:\-]?\s*(.*)",
-        "contact_email": r"[\w\.-]+@[\w\.-]+",
-        "contact_mobile": r"Contact Mobile[:\-]?\s*(\d+)",
-        "reserve_price": r"Reserve Price[:\-]?\s*(\S+)",
-        "emd_amount": r"EMD Amount[:\-]?\s*(\S+)",
-        "incremental_bid_amount": r"Incremental Bid Amount[:\-]?\s*(\S+)"
-    }
-
-    for key, pat in patterns.items():
-        m = re.search(pat, raw_text, re.IGNORECASE)
-        if m:
-            insights[key] = m.group(1).strip()
-
-    return insights
-
 
 def extract_assets_from_text(text: str) -> list:
     def is_valid_price(value: str) -> bool:
@@ -852,81 +821,67 @@ def extract_tables_with_camelot(pdf_bytes: bytes, page_number: int = None) -> Li
        
     return tables
 
-# Initialize EasyOCR Reader (English example)
-reader = easyocr.Reader(['en'])
-
 def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF using EasyOCR.
-    Returns extracted text and an empty table list.
+    Runs OCR on all pages of a PDF and returns extracted text + empty table list.
     """
-    import fitz  # PyMuPDF
-    from PIL import Image
-    import numpy as np
-    import easyocr
+    ocr_text = ""
+    tables = []
 
-    reader = easyocr.Reader(['en'], gpu=False)  # English only for speed
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    all_text = []
+    try:
+        images = convert_from_bytes(pdf_bytes.getvalue())
+        for img in images:
+            text = pytesseract.image_to_string(img)
+            ocr_text += text.strip() + "\n"
+    except Exception as e:
+        print(f"[ERROR] OCR failed: {e}")
 
-    for page_num, page in enumerate(doc):
-        # Convert PDF page to image (higher DPI for better OCR)
-        pix = page.get_pixmap(dpi=400)  
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    return ocr_text, tables
 
-        # Convert to grayscale (improves OCR accuracy for text PDFs)
-        img = img.convert("L")
-
-        # Convert to numpy array
-        img_array = np.array(img)
-
-        # OCR extraction
-        results = reader.readtext(img_array, detail=0, paragraph=True)
-
-        # Collect text
-        page_text = "\n".join(results)
-        all_text.append(page_text)
-
-        logging.info(f"[DEBUG] Page {page_num+1}: {len(page_text)} chars extracted")
-
-    ocr_text = "\n".join(all_text)
-
-    # Save first 2000 chars for quick debug
-    with open("ocr_debug_output.txt", "w", encoding="utf-8") as f:
-        f.write(ocr_text[:2000])
-
-    return ocr_text, []  # no tables extracted yet
 
 
 
 
 def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
-    """
-    Fetch PDF from URL and extract text using EasyOCR (forced mode).
-    Always saves the extracted text for debugging.
-    """
-    import requests, io
-
     response = requests.get(pdf_url, timeout=15)
     response.raise_for_status()
     pdf_bytes = response.content
+    pdf_io = io.BytesIO(pdf_bytes)
 
-    # Force OCR mode (skip pdfplumber)
-    raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
-    scanned_pdf = True  
+    raw_text = ""
+    tables = []
+    scanned_pdf = False
 
-    # Save the full OCR text to inspect locally
-    with open("ocr_debug_full.txt", "w", encoding="utf-8") as f:
-        f.write(raw_text)
+    try:
+        with pdfplumber.open(pdf_io) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                raw_text += page_text.strip() + "\n"
 
-    # Log for debugging
-    logging.info(f"[DEBUG] OCR text length: {len(raw_text)} characters")
+        # Checked if pdfplumber failed to extract text, and use OCR if so.
+        if not raw_text.strip():
+            print("[INFO] pdfplumber extracted no text. Falling back to OCR...")
+            scanned_pdf = True
+            raw_text, tables = ocr_pdf(pdf_io)
+       
+        # If no tables were found, use Camelot as a fallback.
+        if not tables and not scanned_pdf:
+            print("[INFO] pdfplumber did not find any tables. Trying Camelot on All Pages...")
+            tables = extract_tables_with_camelot(pdf_bytes)
 
-    if not raw_text.strip():
-        logging.error("[FATAL] OCR returned nothing even after forcing.")
-        return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
+    except Exception as e:
+        print(f"[ERROR] PDF extraction failed: {e}")
+        # If pdfplumber fails entirely, we check if it's a scanned PDF
+        if is_pdf_scanned(pdf_bytes):
+            scanned_pdf = True
+            raw_text, tables = ocr_pdf(pdf_io)
+        else:
+            print("[INFO] PDF extraction failed but document is not scanned. No OCR fallback.")
+            raw_text = ""
+            tables = []
 
     return raw_text.strip(), tables, scanned_pdf
+
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
     words = text.split()
@@ -986,7 +941,7 @@ class AuctionDetails(BaseModel):
         "validate_by_name": True,   # allows population by field_name as well as alias
         "extra": "ignore"           # ignore extra fields not defined in the model
     }
-    
+   
 def generate_auction_insights(corporate_debtor: str, auction_notice_url: str, llm) -> dict:
     try:
        
@@ -1126,37 +1081,23 @@ Return the result in this **exact JSON format**:
             "...",
             "..."
         ]
-    }},
-    "debug_text": "..."
+    }}
 }}
 """
-
+   
         logging.info(f"[INFO] Prompt length: {len(prompt.split())} words")
 
         response = llm.invoke(prompt, max_tokens=2048, temperature=0.2, top_p=0.9)
         logging.info(f"[INFO] Raw LLM response: {response.content[:500]} ...")
-        
+
         parsed = extract_json_from_text(response.content)
-        regex_parsed = parse_auction_text(raw_text)
-        merged = {**regex_parsed, **parsed}
-        normalized = normalize_keys(merged)
-        
+        normalized = normalize_keys(parsed)
+
         return {
             "status": "success",
-            "insights": {
-                **normalized,
-                "debug_text": raw_text[:1000]  # 👈 show first 1000 chars of extracted text
-            }
+            "scanned_pdf": scanned_pdf,
+            "insights": normalized
         }
-
-
-    except Exception as e:
-        # 🔑 DEBUGGING CHANGE: Capture the exact exception message and return it.
-        error_msg = f"An error occurred during insight generation: {str(e)}"
-        logging.error(f"[ERROR] generate_auction_insights failed: {error_msg}")
-        return {"status": "error", "message": error_msg}
-
-
 
     # FIX: Ensure this 'except' block is aligned exactly with the 'try' block above it.
     except Exception as e:
@@ -1230,10 +1171,6 @@ if page == "🤖 AI Analysis":
                         if isinstance(insight_data, dict):
                             # Assuming display_insights is defined earlier and correct
                             display_insights(insight_data)
-
-                        if "debug_text" in insight_data:
-                            st.markdown("### Debug: Extracted OCR Text (first 1000 chars)")
-                            st.text_area("Debug: Extracted OCR Text", insight_data["debug_text"], height=300)
                         else:
                             st.markdown(insight_data)
                     else:
@@ -1244,3 +1181,4 @@ if page == "🤖 AI Analysis":
                 except Exception as e:
                     # Catch any remaining unexpected errors outside the core function
                     st.error(f"An unexpected error occurred: {str(e)}")
+
