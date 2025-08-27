@@ -713,76 +713,24 @@ def extract_json_from_text(text: str) -> dict:
     return clean_assets(all_assets)
 
 def extract_assets_from_text(text: str) -> list:
-    def is_valid_price(value: str) -> bool:
-        """Check if a string is a valid numeric price (not a date, year, or phone number)."""
-        if not re.search(r'\d', value):
-            return False
-        value_clean = value.replace(",", "").strip()
-        # Discard years
-        if value_clean.isdigit() and 1900 <= int(value_clean) <= 2100:
-            return False
-        # Discard very large numbers that look like phone numbers (>10 digits)
-        if value_clean.isdigit() and len(value_clean) > 10:
-            return False
-        # Discard very small numbers
-        if value_clean.isdigit() and len(value_clean) < 2:
-            return False
-        return True
-
     assets = []
 
-    # Try to find assets based on common keywords
-    asset_keywords = ["Land & Building", "RESIDENTIAL FLAT", "Plant & Machinery"]
-    descriptions_with_keywords = re.split(f'({"|".join(asset_keywords)})', text, flags=re.IGNORECASE)
-    descriptions_with_keywords = [d.strip() for d in descriptions_with_keywords if d.strip()]
+    # Find values based on keywords in the text
+    reserve_price_match = re.search(r"Reserve Price[:\s]*([^\n]+)", text, re.IGNORECASE)
+    emd_amount_match = re.search(r"EMD Amount[:\s]*([^\n]+)", text, re.IGNORECASE)
+    incremental_bid_match = re.search(r"Incremental Bid Amount[:\s]*([^\n]+)", text, re.IGNORECASE)
 
-    # Merge keyword and description
-    asset_descriptions = []
-    for i in range(0, len(descriptions_with_keywords), 2):
-        if i + 1 < len(descriptions_with_keywords):
-            asset_descriptions.append(descriptions_with_keywords[i] + " " + descriptions_with_keywords[i + 1])
-        else:
-            asset_descriptions.append(descriptions_with_keywords[i])
+    current_asset = {
+        "block_name": "",  # You can keep your existing block_name logic if needed
+        "asset_description": "",  # Reuse your description logic if required
+        "reserve_price": reserve_price_match.group(1).strip() if reserve_price_match else "",
+        "emd_amount": emd_amount_match.group(1).strip() if emd_amount_match else "",
+        "incremental_bid_amount": incremental_bid_match.group(1).strip() if incremental_bid_match else ""
+    }
 
-    # Extract price-like numbers
-    price_pattern = re.compile(r'[\d,]+\.\d{1,2}|[\d,]+')
-    all_prices = price_pattern.findall(text)
-    all_prices = [p.replace(",", "") for p in all_prices if is_valid_price(p)]
-
-    # Take only last 18 values if there are many
-    if len(all_prices) >= 18:
-        relevant_prices = all_prices[-18:]
-    else:
-        relevant_prices = all_prices
-
-    price_index = 0
-    for description in asset_descriptions:
-        current_asset = {
-            "block_name": "",
-            "asset_description": description.strip(),
-            "reserve_price": "",
-            "emd_amount": "",
-            "incremental_bid_amount": ""
-        }
-
-        # Set block name
-        if "Land & Building" in description:
-            current_asset["block_name"] = "Land & Building"
-        elif "RESIDENTIAL FLAT" in description:
-            current_asset["block_name"] = "RESIDENTIAL FLAT"
-        elif "Plant & Machinery" in description:
-            current_asset["block_name"] = "PLANT & MACHINERY"
-
-        # Assign only if next 3 prices are valid
-        if price_index + 3 <= len(relevant_prices):
-            group = relevant_prices[price_index:price_index + 3]
-            if all(is_valid_price(p) for p in group):
-                current_asset["reserve_price"], current_asset["emd_amount"], current_asset["incremental_bid_amount"] = group
-            price_index += 3
-
-        assets.append(current_asset)
-
+    assets.append(current_asset)
     return assets
+
    
 def format_tables_as_markdown(tables: List[List[List[str]]]):
     markdown = ""
