@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 import requests
+import platform
 import tempfile
 from pydantic import BaseModel, Field
 from docx import Document
@@ -658,6 +659,8 @@ def display_insights(insights: dict):
 
 # Load data
 df, latest_csv = load_auction_data()
+
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 # Configure logging
 logging.basicConfig(
