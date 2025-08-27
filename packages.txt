@@ -1,1 +1,3 @@
-libgl1
+tessseract-ocr
+tesseract-ocr-por
+poppler-utils
