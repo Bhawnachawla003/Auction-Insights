@@ -855,107 +855,77 @@ def extract_tables_with_camelot(pdf_bytes: bytes, page_number: int = None) -> Li
 # Initialize EasyOCR Reader (English example)
 reader = easyocr.Reader(['en'])
 
-def ocr_pdf(pdf_io: io.BytesIO) -> Tuple[str, List]:
+def ocr_pdf(pdf_bytes: io.BytesIO) -> Tuple[str, List]:
     """
-    Runs OCR on all pages of a PDF with preprocessing.
-    Falls back to EasyOCR if PyMuPDF plain text is empty.
-    Saves debug OCR text into a local file for inspection.
+    Runs OCR on all pages of a PDF using EasyOCR.
+    Returns extracted text and an empty table list.
     """
-    ocr_text = ""
-    tables = []
+    import fitz  # PyMuPDF
+    from PIL import Image
+    import numpy as np
+    import easyocr
 
-    try:
-        doc = fitz.open(stream=pdf_io.getvalue(), filetype="pdf")
-        for page_num, page in enumerate(doc, start=1):
-            # Try PyMuPDF native text extraction first
-            text = page.get_text("text")
-            if text and len(text.strip()) > 50:
-                logging.info(f"[OCR DEBUG] Page {page_num} - using PyMuPDF text")
-                ocr_text += text.strip() + "\n"
-                continue
+    reader = easyocr.Reader(['en'], gpu=False)  # English only for speed
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    all_text = []
 
-            # Otherwise fallback to OCR
-            pix = page.get_pixmap(dpi=300)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    for page_num, page in enumerate(doc):
+        # Convert PDF page to image (higher DPI for better OCR)
+        pix = page.get_pixmap(dpi=400)  
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-            # Preprocess for better OCR
-            img = img.convert("L")
-            img = img.point(lambda x: 0 if x < 180 else 255, '1')
+        # Convert to grayscale (improves OCR accuracy for text PDFs)
+        img = img.convert("L")
 
-            img_array = np.array(img)
-            results = reader.readtext(img_array, detail=0, paragraph=True)
-            ocr_text_page = " ".join(results).strip()
-            logging.info(f"[OCR DEBUG] Page {page_num} - EasyOCR extracted {len(ocr_text_page)} characters")
-            ocr_text += ocr_text_page + "\n"
+        # Convert to numpy array
+        img_array = np.array(img)
 
-        # ---------- Save a preview to file ----------
-        with open("ocr_debug_output.txt", "w", encoding="utf-8") as f:
-            f.write(ocr_text)  
+        # OCR extraction
+        results = reader.readtext(img_array, detail=0, paragraph=True)
 
-        logging.info("[DEBUG] OCR text saved to ocr_debug_output.txt")
+        # Collect text
+        page_text = "\n".join(results)
+        all_text.append(page_text)
 
-    except Exception as e:
-        logging.error(f"[ERROR] OCR failed: {e}")
+        logging.info(f"[DEBUG] Page {page_num+1}: {len(page_text)} chars extracted")
 
-    return ocr_text, tables
+    ocr_text = "\n".join(all_text)
 
+    # Save first 2000 chars for quick debug
+    with open("ocr_debug_output.txt", "w", encoding="utf-8") as f:
+        f.write(ocr_text[:2000])
 
+    return ocr_text, []  # no tables extracted yet
 
 
 
 
 def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
     """
-    Extracts text and tables from a PDF (URL).
-    - Tries pdfplumber first.
-    - If text looks empty/garbled, falls back to OCR (EasyOCR).
-    - Always returns *some* text if the PDF has visible content.
+    Fetch PDF from URL and extract text using EasyOCR (forced mode).
+    Always saves the extracted text for debugging.
     """
+    import requests, io
+
     response = requests.get(pdf_url, timeout=15)
     response.raise_for_status()
     pdf_bytes = response.content
-    pdf_io = io.BytesIO(pdf_bytes)
 
-    raw_text = ""
-    tables = []
-    scanned_pdf = False
+    # Force OCR mode (skip pdfplumber)
+    raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
+    scanned_pdf = True  
 
-    try:
-        # ---------- Try pdfplumber ----------
-        with pdfplumber.open(pdf_io) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text() or ""
-                raw_text += page_text.strip() + "\n"
+    # Save the full OCR text to inspect locally
+    with open("ocr_debug_full.txt", "w", encoding="utf-8") as f:
+        f.write(raw_text)
 
-        # ---------- Check if pdfplumber text is valid ----------
-        too_short = len(raw_text.strip()) < 200
-        too_few_words = raw_text.count(" ") < 10
+    # Log for debugging
+    logging.info(f"[DEBUG] OCR text length: {len(raw_text)} characters")
 
-        if too_short or too_few_words:
-            logging.warning("[FALLBACK] pdfplumber text is too short/garbled. Switching to OCR.")
-            scanned_pdf = True
-            raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
-
-        # ---------- Try Camelot if no tables ----------
-        if not tables and not scanned_pdf:
-            logging.info("[INFO] pdfplumber found no tables. Trying Camelot...")
-            try:
-                tables = extract_tables_with_camelot(pdf_bytes)
-            except Exception as e:
-                logging.error(f"[ERROR] Camelot failed: {e}")
-
-    except Exception as e:
-        logging.error(f"[ERROR] pdfplumber failed: {e}")
-        # Final fallback: OCR
-        scanned_pdf = True
-        raw_text, tables = ocr_pdf(io.BytesIO(pdf_bytes))
-
-    # ---------- Final Safety Check ----------
     if not raw_text.strip():
-        logging.error("[FATAL] Both pdfplumber and OCR failed to extract text.")
-        return ocr_pdf(io.BytesIO(pdf_bytes))[0], tables, True
+        logging.error("[FATAL] OCR returned nothing even after forcing.")
+        return "[RAW EMPTY] OCR returned nothing", tables, scanned_pdf
 
-    logging.info(f"[DEBUG] Extracted text preview: {raw_text[:500]}...")
     return raw_text.strip(), tables, scanned_pdf
 
 def truncate_text(text: str, max_words: int = 5000) -> str:
