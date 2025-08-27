@@ -846,12 +846,6 @@ def fetch_text_from_url(pdf_url: str) -> Tuple[str, List, bool]:
 
     return raw_text.strip(), tables, scanned_pdf
 
-def validate_assets(assets: list) -> list:
-    for asset in assets:
-        if asset.get("reserve_price") == asset.get("emd_amount") and asset.get("reserve_price"):
-            # If both are identical, keep Reserve Price, blank out EMD (safer fallback)
-            asset["emd_amount"] = ""
-    return assets
 
 
 
@@ -1166,7 +1160,7 @@ if page == "🤖 AI Analysis":
                                 insight_data["assets"] = [
                                     enforce_numeric_fields(asset) for asset in insight_data["assets"]
                                 ]
-                                insight_data["assets"] = validate_assets(insight_data["assets"])
+                                
                             display_insights(insight_data)
                         else:
                             st.markdown(insight_data)
