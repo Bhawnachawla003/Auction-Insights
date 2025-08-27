@@ -1128,24 +1128,16 @@ Return the result in this **exact JSON format**:
         response = llm.invoke(prompt, max_tokens=2048, temperature=0.2, top_p=0.9)
         logging.info(f"[INFO] Raw LLM response: {response.content[:500]} ...")
 
-        parsed = extract_json_from_text(response.content)
-
-
-        regex_parsed = parse_auction_text(raw_text)
-
-
-        merged = {**regex_parsed, **parsed}
-
-        normalized = normalize_keys(merged)
                 parsed = extract_json_from_text(response.content)
-        regex_parsed = parse_auction_text(raw_text)
-        merged = {**regex_parsed, **parsed}
-        normalized = normalize_keys(merged)
+                regex_parsed = parse_auction_text(raw_text)
+                merged = {**regex_parsed, **parsed}
+                normalized = normalize_keys(merged)
 
-        return {
-            "status": "success",
-            "insights": normalized
-        }
+                return {
+                    "status": "success",
+                    "insights": normalized
+                }
+
 
     except Exception as e:
         # 🔑 DEBUGGING CHANGE: Capture the exact exception message and return it.
