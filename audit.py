@@ -1099,32 +1099,48 @@ if page == "🤖 AI Analysis":
         st.error("No auction data loaded")
         st.stop()
 
-    # Clean and standardize column names for safety
-    df.columns = df.columns.str.strip().str.lower().str.replace(r"[^\w]+", "_", regex=True)
+    emd_col = 'EMD Submission Date'
+    id_col = 'Auction ID'
+    bank_col = 'Bank' # The column for the corporate debtor/bank
+    notice_url_col = 'Notice URL'
 
-    # Use CIN/LLPIN column as Auction ID selector
-    if 'auction_id' not in df.columns:
-        st.error("Column 'Auction ID' (auction_id) not found in the uploaded data.")
+    # Check for the existence of required columns
+    if emd_col not in df.columns or id_col not in df.columns or bank_col not in df.columns or notice_url_col not in df.columns:
+        missing_cols = [col for col in [emd_col, id_col, bank_col, notice_url_col] if col not in df.columns]
+        st.error(f"Required columns not found. Missing: {missing_cols}. Please check your raw data file.")
         st.stop()
 
-    # Filter out rows with invalid or placeholder URLs
-    df_filtered = df[~df['notice_url'].str.contains('URL 2_if available', case=False, na=False)]
+    # Convert the EMD column to datetime objects
+    df[emd_col] = pd.to_datetime(df[emd_col], format='%d-%m-%Y', errors='coerce')
 
-    # Populate the selectbox with the filtered data
-    auction_ids = df_filtered['auction_id'].dropna().unique()
+    # Filter for active auctions
+    today = datetime.now().date()
+    df_active = df[
+        (df[emd_col].dt.date >= today) &  # Filter for EMD date today or in the future
+        (~df[notice_url_col].str.contains('URL 2_if available', case=False, na=False)) # Filter out placeholder URLs
+    ].copy() # .copy() prevents a SettingWithCopyWarning
+
+    if df_active.empty:
+        st.warning("No active auctions found in the dataset.")
+        st.stop()
+    
+    # Populate the selectbox with the filtered, active data
+    auction_ids = df_active[id_col].dropna().unique()
     selected_id = st.selectbox("Select Auction ID (from CIN/LLPIN)", options=[""] + list(auction_ids))
-   
+    
     if selected_id:
-        selected_row = df[df['auction_id'] == selected_id]
+        # Use df_active to find the selected row, and use the variable names
+        selected_row = df_active[df_active[id_col] == selected_id]
+        
         if selected_row.empty:
-            st.warning("Selected Auction ID not found in the data.")
+            st.warning("Selected Auction ID not found in the filtered active data.")
             st.stop()
 
         auction_data = selected_row.iloc[0].to_dict()
 
-        # Use the actual cleaned column names
-        corporate_debtor = auction_data.get('bank', '')
-        auction_notice_url = auction_data.get('notice_url', '')
+        # Use the variable names to get data from the dictionary
+        corporate_debtor = auction_data.get(bank_col, '')
+        auction_notice_url = auction_data.get(notice_url_col, '')
 
         if not corporate_debtor or not auction_notice_url:
             st.warning("Corporate Debtor name or Auction Notice URL missing for selected Auction ID.")
@@ -1133,8 +1149,6 @@ if page == "🤖 AI Analysis":
         @st.cache_resource
         def initialize_llm():
             groq_api_key = st.secrets["GROQ_API_KEY"]
-            # NOTE: Consider changing model to 'mixtral-8x7b-32768' as it's a common high-quality Groq model
-            # that is often more reliable than the deepseek model.
             return ChatGroq(
                 model="deepseek-r1-distill-llama-70b",
                 temperature=0,
@@ -1165,10 +1179,8 @@ if page == "🤖 AI Analysis":
                             st.markdown(insight_data)
                             
                     else:
-                        # 🔑 DEBUGGING CHANGE: Display the full error trace from the 'message' field
                         st.error("Analysis Failed")
                         st.error(insights_result["message"])
-                       
+                        
                 except Exception as e:
-                    # Catch any remaining unexpected errors outside the core function
                     st.error(f"An unexpected error occurred: {str(e)}")
